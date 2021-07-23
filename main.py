@@ -23,3 +23,66 @@ def tensor_to_image(tensor):
         assert tensor.shape[0] == 1
         tensor = tensor[0]
     return PIL.Image.fromarray(tensor)
+
+# get the content and style images from keras.utils
+content_path = tf.keras.utils.get_file('YellowLabradorLooking_new.jpg', 'https://storage.googleapis.com/download.tensorflow.org/example_images/YellowLabradorLooking_new.jpg')
+style_path = tf.keras.utils.get_file('kandinsky5.jpg','https://storage.googleapis.com/download.tensorflow.org/example_images/Vassily_Kandinsky%2C_1913_-_Composition_7.jpg')
+
+# defines a function that will load an image and set its max dimensions to 512 pixels
+def load_image(img_path):
+    max_dim = 512
+    image = tf.io.read_file(img_path)
+    # 3 for RGB channels
+    image = tf.image.decode_image(image, channels=3)
+    image = tf.image.convert_image_dtype(image, tf.float32)
+
+    # casts image tensor to type tf.float32
+    shape = tf.cast(tf.shape(image)[:-1], tf.float32)
+    long_dim = max(shape)
+    scale = max_dim/long_dim
+
+    # scales the image shape and casts
+    new_shape = tf.cast(shape * scale, tf.int32)
+    image = tf.image.resize(image, new_shape)
+    image = image[tf.newaxis, :]
+    
+    return image
+
+# defines a function that will show an image using plt
+def show_image(image, title=None):
+    # if the image shape is greater than 3, squeeze
+    if len(image.shape) > 3:
+        image = tf.squeeze(image, axis=0)
+    
+    plt.imshow(image)
+    if title:
+        plt.title(title)
+
+# Show the content and style images
+content_image = load_image(content_path)
+style_image = load_image(style_path)
+
+plt.subplot(1, 2, 1)
+show_image(content_image, 'Content Image')
+
+plt.subplot(1, 2, 2)
+show_image(style_image, 'Style Image')
+plt.show()
+
+# preprocess content image for vgg19 network
+x = tf.keras.applications.vgg19.preprocess_input(content_image * 255)
+x = tf.image.resize(x, (224, 224))
+vgg = tf.keras.applications.VGG19(include_top=True, weights='imagenet')
+prediction_prob = vgg(x)
+print(prediction_prob.shape)
+
+# predicts what type of dog the content image is
+predicted_top_5 = tf.keras.applications.vgg19.decode_predictions(prediction_prob.numpy())[0]
+[(class_name, prob) for (number, class_name, prob) in predicted_top_5]
+print(predicted_top_5)
+
+# loading a VGG19 network and listing the layers
+vgg = tf.keras.applications.VGG19(include_top=False, weights='imagenet')
+print()
+for layer in vgg.layers:
+    print(layer)
