@@ -86,3 +86,40 @@ vgg = tf.keras.applications.VGG19(include_top=False, weights='imagenet')
 print()
 for layer in vgg.layers:
     print(layer)
+
+# Choose layers from model to represent the style and content of the image
+content_layers = ['block5_conv2']
+
+style_layers = ['block1_conv1',
+                'block2_conv1',
+                'block3_conv1',
+                'block4_conv1',
+                'block5_conv1']
+
+num_content_layers = len(content_layers)
+num_style_layers = len(style_layers)
+
+# building the vgg model 
+def vgg_layers(layer_names):
+    vgg = tf.keras.applications.VGG19(include_top=False, weights='imagenet')
+    vgg.trainable = False
+
+    outputs = [vgg.get_layer(name).output for name in layer_names]
+
+    model = tf.keras.Model([vgg.input],  outputs)
+    return model
+
+# create the model
+style_extractor = vgg_layers(style_layers)
+style_outputs = style_extractor(style_image * 255)
+
+# Visualize layers and each layer's output
+for name, output in zip(style_layers, style_outputs):
+    print(name)
+    print("  shape: ", output.numpy().shape)
+    print("  min: ", output.numpy().min())
+    print("  max: ", output.numpy().max())
+    print("  mean: ", output.numpy().mean())
+    print()
+
+    
