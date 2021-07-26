@@ -122,4 +122,61 @@ for name, output in zip(style_layers, style_outputs):
     print("  mean: ", output.numpy().mean())
     print()
 
-    
+# calculate style using a gram matrix
+def gram_matrix(input_tensor):
+    # we do this by taking the outer product of the feature vector with itself at each location, then averaging over all locations
+    result = tf.linalg.einsum('bijc,bijd->bcd', input_tensor, input_tensor)
+    input_shape = tf.shape(input_tensor)
+    num_locations = tf.cast(input_shape[1] * input_shape[2], tf.float32)
+    return result / num_locations
+
+# building the model that returns style and content tensors
+class StyleContentModel(tf.keras.models.Model):
+    def __init__(self, style_layers, content_layers):
+        super(StyleContentModel, self).__init__()
+        self.vgg = vgg_layers(style_layers + content_layers)
+        self.style_layers = style_layers
+        self.content_layers = content_layers
+        self.num_style_layers = len(style_layers)
+        self.vgg_trainable = False
+
+    def call(self, inputs):
+        inputs = inputs * 255.0
+        preprocessed_input = tf.keras.applications.vgg19.preprocess_input(inputs)
+        outputs = self.vgg(preprocessed_input)
+        style_outputs, content_outputs = (outputs[:self.num_style_layers],
+                                          outputs[self.num_style_layers:])
+        style_outputs = [gram_matrix(style_output)
+                         for style_output in style_outputs]
+
+        content_dict = {content_name: value
+                        for content_name, value
+                        in zip(self.content_layers, content_outputs)}
+
+        style_dict = {style_name: value
+                      for style_name, value
+                      in zip(self.style_layers, style_outputs)}
+
+        return {'content': content_dict, 'style': style_dict}
+
+# model returns the gram matrix of the style_layers and content of the content_layers
+extractor = StyleContentModel(style_layers, content_layers)
+
+results = extractor(tf.constant(content_image))
+
+print('Styles:')
+for name, output in sorted(results['style'].items()):
+  print("  ", name)
+  print("    shape: ", output.numpy().shape)
+  print("    min: ", output.numpy().min())
+  print("    max: ", output.numpy().max())
+  print("    mean: ", output.numpy().mean())
+  print()
+
+print("Contents:")
+for name, output in sorted(results['content'].items()):
+  print("  ", name)
+  print("    shape: ", output.numpy().shape)
+  print("    min: ", output.numpy().min())
+  print("    max: ", output.numpy().max())
+  print("    mean: ", output.numpy().mean())
