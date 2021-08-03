@@ -180,3 +180,72 @@ for name, output in sorted(results['content'].items()):
   print("    min: ", output.numpy().min())
   print("    max: ", output.numpy().max())
   print("    mean: ", output.numpy().mean())
+
+# set the style and content target values 
+style_targets = extractor(style_image)['style']
+content_targets = extractor(content_image)['content']
+
+# creating tf.Variable to contain the image that needs to be optimized
+image = tf.Variable(content_image)
+
+# def function to kepe pixel value between 0.0 and 1.0
+def clip_0_1(image):
+    return tf.clip_by_value(image, clip_value_min=0.0, clip_value_max=1.0)
+
+# Create Adam Optimizer
+opt = tf.optimizers.Adam(learning_rate=0.02, beta_1=0.99, epsilon=1e-1)
+
+# use a weighted combo of two losses to get total loss
+def style_content_loss(outputs):
+    style_weight = 1e-2
+    content_weight = 1e4
+    
+    style_outputs = outputs['style']
+    content_outputs = outputs['content']
+
+    style_loss = tf.add_n([tf.reduce_mean((style_outputs[name] - style_targets[name]) ** 2) for name in style_outputs.keys()])
+    style_loss *= style_weight / num_style_layers
+
+    content_loss = tf.add_n([tf.reduce_mean((content_outputs[name] - content_targets[name]) ** 2) for name in content_outputs.keys()])
+    content_loss *= content_weight / num_content_layers
+
+    total_loss = style_loss + content_loss
+    return total_loss
+
+# update the image each step using tf.GradientTape
+@tf.function()
+def train_step(image):
+    with tf.GradientTape() as tape:
+        outputs = extractor(image)
+        loss = style_content_loss(outputs)
+
+    grad = tape.gradient(loss, image)
+    opt.apply_gradients([(grad, image)])
+    image.assign(clip_0_1(image))
+
+# training example of 3 steps
+#train_step(image)
+#train_step(image)
+#train_step(image)
+#tensor_to_image(image)
+#show_image(image)
+#plt.show()
+
+start = time.time()
+
+epochs = 10
+steps_per_epoch = 100
+step = 0
+for m in range(epochs):
+    for n in range(steps_per_epoch):
+        step += 1
+        train_step(image)
+        print(".", end='', flush=True)
+    display.clear_output(wait=True)
+    display.display(tensor_to_image(image))
+    print("Train step: {}".format(step))
+
+end = time.time()
+print("Total time: {:.1f}".format(end - start))
+show_image(image)
+plt.show()
