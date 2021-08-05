@@ -25,8 +25,8 @@ def tensor_to_image(tensor):
     return PIL.Image.fromarray(tensor)
 
 # get the content and style images from keras.utils
-content_path = tf.keras.utils.get_file('YellowLabradorLooking_new.jpg', 'https://storage.googleapis.com/download.tensorflow.org/example_images/YellowLabradorLooking_new.jpg')
-style_path = tf.keras.utils.get_file('kandinsky5.jpg','https://storage.googleapis.com/download.tensorflow.org/example_images/Vassily_Kandinsky%2C_1913_-_Composition_7.jpg')
+content_path = tf.keras.utils.get_file('20CARAMANICA-superJumbo.jpg', 'https://static01.nyt.com/images/2016/11/20/arts/20CARAMANICA/20CARAMANICA-superJumbo.jpg')
+style_path = tf.keras.utils.get_file('the-persistence-of-memory-salvador-dali_121638270.jpg','https://files.logoscdn.com/v1/files/44461747/assets/10864222/content.jpg?signature=EdLiOT2ob8_RbU1k_yJ-a9MakSY')
 
 # defines a function that will load an image and set its max dimensions to 512 pixels
 def load_image(img_path):
@@ -212,24 +212,33 @@ def style_content_loss(outputs):
     total_loss = style_loss + content_loss
     return total_loss
 
+# Reduces some of the higher frequency artifacts by using a regularization term
+def high_pass_x_y(image):
+    x_var = image[:, :, 1:, :] - image[:, :, :-1, :]
+    y_var = image[:, 1:, :, :] - image[:, :-1, :, :]
+
+    return x_var, y_var
+
+# regularization loss is the sum of the squares of the values
+def total_variation_loss(image):
+  x_deltas, y_deltas = high_pass_x_y(image)
+  return tf.reduce_sum(tf.abs(x_deltas)) + tf.reduce_sum(tf.abs(y_deltas))
+
+total_variation_weight = 30
+
 # update the image each step using tf.GradientTape
 @tf.function()
 def train_step(image):
     with tf.GradientTape() as tape:
         outputs = extractor(image)
         loss = style_content_loss(outputs)
+        loss += total_variation_weight * tf.image.total_variation(image)
 
     grad = tape.gradient(loss, image)
     opt.apply_gradients([(grad, image)])
     image.assign(clip_0_1(image))
 
-# training example of 3 steps
-#train_step(image)
-#train_step(image)
-#train_step(image)
-#tensor_to_image(image)
-#show_image(image)
-#plt.show()
+image = tf.Variable(content_image)
 
 start = time.time()
 
